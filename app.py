@@ -1,46 +1,59 @@
-from flask import Flask, request, render_template_string, send_file
+
+import streamlit as st
 from rembg import remove
 from PIL import Image
 import io
+import requests
 
-app = Flask(__name__)
+st.set_page_config(page_title="GlowEdit Pro AI", page_icon="✨", layout="centered")
 
-HTML = """
-<!DOCTYPE html>
-<html>
-<head>
-<title>GlowEdit Pro</title>
-<style>
-body { background:#0a0a0a; color:white; font-family:Arial; text-align:center; padding:40px; }
-.box { background:#1a1a1a; padding:30px; border-radius:20px; max-width:500px; margin:0 auto; }
-button { background:#ff2e93; color:white; border:none; padding:15px 30px; border-radius:30px; font-size:18px; cursor:pointer; width:100%; }
-input { margin:20px 0; }
-</style>
-</head>
-<body>
-<div class="box">
-<h1>GlowEdit ✨</h1>
-<p>Pro Background Remover - HD</p>
-<form method="POST" enctype="multipart/form-data">
-<input type="file" name="image" required><br>
-<button type="submit">Remove Background</button>
-</form>
-</div>
-</body>
-</html>
-"""
+st.markdown("<h1 style='text-align:center;'>GlowEdit Pro AI ✨</h1>", unsafe_allow_html=True)
+st.markdown("<p style='text-align:center;'>Remove BG + AI Background Generator</p>", unsafe_allow_html=True)
 
-@app.route('/', methods=['GET', 'POST'])
-def index():
-    if request.method == 'POST':
-        file = request.files['image']
-        input_img = Image.open(file.stream)
-        output_img = remove(input_img)
-        img_io = io.BytesIO()
-        output_img.save(img_io, 'PNG')
-        img_io.seek(0)
-        return send_file(img_io, mimetype='image/png', as_attachment=True, download_name='glowedit_hd.png')
-    return render_template_string(HTML)
+uploaded_file = st.file_uploader("Upload your image", type=["png","jpg","jpeg"])
 
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)
+if uploaded_file:
+    input_img = Image.open(uploaded_file).convert("RGBA")
+    st.image(input_img, caption="Original", use_container_width=True)
+    
+    if st.button("🪄 Remove Background - HD", use_container_width=True, type="primary"):
+        with st.spinner("Making it glow..."):
+            output = remove(input_img)
+            st.session_state['cutout'] = output
+            st.image(output, caption="Cutout - Transparent", use_container_width=True)
+            
+            buf = io.BytesIO()
+            output.save(buf, format="PNG")
+            buf.seek(0)
+            st.download_button("⬇️ Download Transparent PNG", buf, "glowedit_hd.png", "image/png", use_container_width=True)
+
+if 'cutout' in st.session_state:
+    st.markdown("---")
+    st.markdown("### 🤖 AI Background Generator - PRO")
+    prompt = st.text_input("Describe your new background:", placeholder="e.g. luxury office, beach sunset, neon city, white studio")
+    
+    if st.button("✨ Generate AI Background", use_container_width=True):
+        if prompt:
+            with st.spinner(f"AI generating: {prompt}..."):
+                try:
+                    # Free AI image gen
+                    url = f"https://image.pollinations.ai/prompt/{prompt}?width=1024&height=1024&nologo=true"
+                    resp = requests.get(url, timeout=30)
+                    bg = Image.open(io.BytesIO(resp.content)).convert("RGBA").resize(st.session_state['cutout'].size)
+                    fg = st.session_state['cutout']
+                    final = Image.alpha_composite(bg, fg)
+                    st.image(final, caption=f"AI Background: {prompt}", use_container_width=True)
+                    buf2 = io.BytesIO()
+                    final.save(buf2, format="PNG")
+                    buf2.seek(0)
+                    st.download_button("⬇️ Download AI Background HD", buf2, "glowedit_ai_bg.png", "image/png", use_container_width=True, type="primary")
+                except Exception as e:
+                    st.error(f"AI error: {e} - try again")
+        else:
+            st.warning("Type a background description first!")
+
+st.markdown("---")
+st.markdown("### Want Unlimited HD + AI? 💎")
+st.link_button("🔓 Unlock PRO - $4.99 One Time", "https://paypal.me/TironSmith458/4.99CAD", use_container_width=True, type="primary")
+st.caption("Pay once, get unlimited HD + AI Generator - money to Tiron Smith")
+st.caption("Built in Welland, Ontario 🇨🇦 | GlowEdit Pro V2")

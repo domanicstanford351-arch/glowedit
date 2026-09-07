@@ -1,5 +1,5 @@
-Flask
+streamlit
 rembg
-Pillow
+pillow
+requests
 onnxruntime
-gunicorn
